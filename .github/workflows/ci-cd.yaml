@@ -79,3 +79,32 @@ jobs:
         sleep 5  # Wait for port-forward to establish
         curl -s http://localhost:8080
         kill %1  # Kill the port-forward process
+
+  deploy-to-prod:
+    runs-on: ubuntu-latest
+    needs: [build-test, deploy-to-dev]
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Configure Kubernetes
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
+
+      - name: Deploy to Production
+        run: |
+          helm upgrade --install myapp-prod ./helm-chart \
+            -f ./helm-chart/values-prod.yaml \
+            --set image.tag=${{ github.sha }} \
+            --namespace production
+
+      - name: Run Smoke Tests
+        run: |
+          # Get external IP
+          SERVICE_IP=$(kubectl get svc myapp-prod-service -n production -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          curl -s http://$SERVICE_IP/health | jq -e '.status == "healthy"'
