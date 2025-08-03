@@ -40,24 +40,25 @@ jobs:
         # Verify installation
         minikube version
 
-  - name: Start Minikube
-    run: |
-      minikube start --driver=docker
-      minikube addons enable ingress
+    - name: Start Minikube
+      run: |
+        minikube start --driver=docker
+        minikube addons enable ingress
 
-  - name: Configure Docker environment
-    run: |
-      # Get and save Minikube's Docker environment
-      minikube docker-env > docker-env.sh
-      source docker-env.sh
-      
-      # Set required environment variables
-      echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
-      echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
-      echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
+    - name: Configure Docker environment
+      run: |
+        # Get and save Minikube's Docker environment
+        minikube docker-env > docker-env.sh
+        source docker-env.sh
+        
+        # Set required environment variables
+        echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
+        echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
+        echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
 
-  - name: Build in Minikube environment
-    run: docker build -t myapp:${{ github.sha }} .
+    - name: Build in Minikube environment
+      run: docker build -t myapp:${{ github.sha }} .
+
     - name: Deploy with Helm
       run: |
         helm upgrade --install myapp-release ./helm-chart \
