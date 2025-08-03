@@ -68,7 +68,14 @@ jobs:
     - name: Verify deployment
       run: |
         # Wait for pods to be ready
-        minikube kubectl -- wait --for=condition=ready pod -l app=myapp-release --timeout=120s
+        kubectl wait --for=condition=ready pod -l app=myapp-release --timeout=120s
         
-        # Get service URL
-        minikube service myapp-release-service --url
+        # Get service details
+        kubectl get svc myapp-release-service -o wide
+        echo "Deployment verified successfully!"
+        
+        # Optional: Port-forward and test (for CI)
+        kubectl port-forward svc/myapp-release-service 8080:80 &
+        sleep 5  # Wait for port-forward to establish
+        curl -s http://localhost:8080
+        kill %1  # Kill the port-forward process
