@@ -1,0 +1,4 @@
+apiVersion: v2
+name: myapp
+description: Flask Application
+version: 0.1.0

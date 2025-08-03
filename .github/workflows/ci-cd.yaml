@@ -1,0 +1,81 @@
+name: DevOps Pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: docker build -t myapp:${{ github.sha }} .
+
+    - name: Run tests
+      run: |
+        docker run myapp:${{ github.sha }} python -c "import flask; print('Flask version:', flask.__version__)"
+
+  deploy-to-dev:
+    runs-on: ubuntu-latest
+    needs: build-test
+    environment: dev
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: v3.12.0
+
+    - name: Install Minikube
+      run: |
+        # Install Minikube
+        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        sudo install minikube-linux-amd64 /usr/local/bin/minikube
+        
+        # Verify installation
+        minikube version
+
+    - name: Start Minikube
+      run: |
+        minikube start --driver=docker
+        minikube addons enable ingress
+
+    - name: Configure Docker environment
+      run: |
+        # Get and save Minikube's Docker environment
+        minikube docker-env > docker-env.sh
+        source docker-env.sh
+        
+        # Set required environment variables
+        echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
+        echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
+        echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
+
+    - name: Build in Minikube environment
+      run: docker build -t myapp:${{ github.sha }} .
+
+    - name: Deploy with Helm
+      run: |
+        helm upgrade --install myapp-release ./helm-chart \
+          --set image.tag=${{ github.sha }} \
+          --set replicaCount=2
+
+    - name: Verify deployment
+      run: |
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app=myapp-release --timeout=120s
+        
+        # Get service details
+        kubectl get svc myapp-release-service -o wide
+        echo "Deployment verified successfully!"
+        
+        # Optional: Port-forward and test (for CI)
+        kubectl port-forward svc/myapp-release-service 8080:80 &
+        sleep 5  # Wait for port-forward to establish
+        curl -s http://localhost:8080
+        kill %1  # Kill the port-forward process
